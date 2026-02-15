@@ -1,4 +1,26 @@
+# macOS
 .DS_Store
-backend/target/ 
-frontend/node_modules/
-frontend/dist/
+
+# Logs
+*.log
+logs/
+
+# Maven
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+dependency-reduced-pom.xml
+
+# Java
+*.class
+
+# Spring Boot
+HELP.md
+
+# Env / secrets
+.env
+application-local.yml
+
+# VS Code
+.vscode/
+
