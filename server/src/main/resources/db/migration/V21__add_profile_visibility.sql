@@ -1,0 +1,2 @@
+ALTER TABLE user_profiles
+    ADD COLUMN IF NOT EXISTS profile_visible BOOLEAN NOT NULL DEFAULT TRUE;
