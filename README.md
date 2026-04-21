@@ -1,225 +1,360 @@
 # SpinNode
 
-SpinNode is a full-stack social hiring platform built for early-career professionals and recruiters. The app combines job discovery, profile management, coding challenges, forums, notifications, and messaging in a single product experience.
+A full-stack social hiring platform for early-career engineers and recruiters. Job seekers build profiles, browse jobs, complete daily coding challenges, and connect with peers. Recruiters post openings and browse a talent pool. Both sides share community forums, direct messaging, and an AI career assistant.
 
-This project was built to practice end-to-end product development across:
-- modern React frontend architecture
-- Spring Boot REST API design
-- PostgreSQL schema design and migrations
-- JWT and Google OAuth authentication
-- recruiter/job seeker user flows
+**Live demo:** [spin-node.com](https://www.spin-node.com)
 
-## Demo Scope
-
-Current product flows include:
-- email/password signup and login
-- Google OAuth login
-- role selection during signup: `JOB_SEEKER` or `RECRUITER`
-- profile editing with experience, projects, skills, avatar, and cover image
-- job browsing and saved jobs
-- daily coding challenges
-- community forums and thread creation
-- notifications
-- direct messaging UI
-- search across jobs and companies
+---
 
 ## Tech Stack
 
-### Frontend
-- React 19
-- TypeScript
-- Vite
-- React Router
-- Tailwind CSS v4
-- Radix UI primitives
-- Lucide icons
+| Layer | Technology |
+|---|---|
+| Backend | Java 17, Spring Boot 3.5.9, Spring Security, Spring WebSocket |
+| Auth | JWT (JJWT 0.12.6), Google OAuth2 |
+| Database | PostgreSQL 16, Flyway (26 migrations) |
+| Cache | Redis 7 |
+| Search | Elasticsearch |
+| AI | Groq API (cover letters, career chat) |
+| Resume | Apache PDFBox 3 (PDF parsing) |
+| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4 |
+| UI | Radix UI, Lucide React, Sonner |
+| Infra | Docker, Vercel |
 
-### Backend
-- Java 17
-- Spring Boot 3
-- Spring Security
-- OAuth2 Client
-- JWT
-- Spring Data JPA
-- Flyway
-- PostgreSQL
+---
 
-## Architecture
+## System Design
 
-The repository is split into two apps:
+### Architecture
 
-```text
-spinnode/
-├── client/   # React + Vite frontend
-└── server/   # Spring Boot backend
+```
+Browser (React + Vite)
+  │  REST API calls ─────────────────────────────────────┐
+  │  WebSocket (real-time messages)                       │
+  │  OAuth2 redirect flow                                 │
+  ▼                                                       │
+Spring Boot (port 8080)                                   │
+  ├─ AuthController      /auth/register, /auth/login      │
+  ├─ UserController      /api/me, /api/users              │
+  ├─ ProfileController   /api/profile                     │
+  ├─ JobController       /api/jobs                        │
+  ├─ ForumController     /api/forums                      │
+  ├─ MessagingController /api/messages + WS /ws/messages  │
+  ├─ NotificationController /api/notifications            │
+  ├─ ChallengeController /api/challenges                  │
+  ├─ RecruiterController /api/recruiter                   │
+  ├─ AiController        /api/ai  ──────────── Groq API   │
+  ├─ ResumeController    /api/resume ──── PDFBox parser   │
+  ├─ SearchController    /api/search ──── Elasticsearch   │
+  └─ PostController      /api/posts                       │
+       │                                                  │
+       ├── PostgreSQL (JPA + Flyway)                      │
+       └── Redis (session cache)                    ◄─────┘
+
+OAuth2 flow:
+  Browser → /oauth2/authorization/google → Google → /auth/callback
+  → Spring exchanges code → JWT issued → frontend stores token
 ```
 
-### Frontend responsibilities
-- route protection and auth state
-- feature pages for jobs, profile, challenges, forums, messages, notifications
-- API integration through a shared client layer
-- modern glass-style UI system with reusable inputs, buttons, modals, and surfaces
+### Key Data Flows
 
-### Backend responsibilities
-- authentication and authorization
-- user/profile/job/forum/message/challenge APIs
-- persistence with PostgreSQL
-- database migrations through Flyway
-- Google OAuth success/failure redirect flow
+| Flow | Path |
+|---|---|
+| Email signup | `POST /auth/register` → hash password → persist user → return JWT |
+| Google login | Browser → Google OAuth → `/auth/callback` → upsert user → return JWT |
+| JWT auth | Every request → `JwtAuthFilter` → validate token → inject `SecurityContext` |
+| Onboarding gate | Frontend `ProtectedRoute` checks `onboardingComplete` → redirect to `/onboarding` |
+| Real-time message | `POST /api/messages/.../messages` → persist → `MessagingRealtimeService` → WebSocket push |
+| AI cover letter | `POST /api/ai/cover-letter` → Spring → Groq REST API → streamed text response |
+| Resume parse | `POST /api/resume/parse` → PDFBox extracts text → structured profile fields returned |
+| Daily challenge | `ChallengeScheduler` (cron) → fetches LeetCode daily → persists → available at `/api/challenges` |
 
-## Key Features
+### Database Schema
 
-### 1. Authentication
-- JWT-based login for API access
-- Google OAuth login flow
-- `/api/me` endpoint for session restoration
-- user role support:
-  - `JOB_SEEKER`
-  - `RECRUITER`
+```
+┌──────────────────────────────────────────┐
+│                  users                   │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ email         TEXT           UNIQUE       │
+│ display_name  TEXT                        │
+│ password_hash TEXT           nullable     │  null when Google OAuth
+│ google_id     TEXT           nullable     │
+│ role          ENUM           JOB_SEEKER   │
+│                              RECRUITER    │
+│ created_at    TIMESTAMPTZ                 │
+└──────────┬───────────────────────────────┘
+           │
+           │ 1:1
+           ▼
+┌──────────────────────────────────────────┐
+│              user_profiles               │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ user_id       BIGINT         FK → users   │
+│ headline      TEXT                        │
+│ bio           TEXT                        │
+│ avatar_url    TEXT                        │
+│ cover_url     TEXT                        │
+│ location      TEXT                        │
+│ website       TEXT                        │
+│ visibility    ENUM           PUBLIC       │
+│                              PRIVATE      │
+└──────────┬───────────────────────────────┘
+           │
+           │ 1:N
+           ▼
+┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+│    experiences     │  │  profile_projects  │  │    user_skills     │
+├────────────────────┤  ├────────────────────┤  ├────────────────────┤
+│ id   BIGINT    PK  │  │ id   BIGINT    PK  │  │ id   BIGINT    PK  │
+│ user_id  FK        │  │ user_id  FK        │  │ user_id  FK        │
+│ title  TEXT        │  │ name  TEXT         │  │ name  TEXT         │
+│ company  TEXT      │  │ description  TEXT  │  │ proficiency  TEXT  │
+│ start_date DATE    │  │ url  TEXT          │  └────────────────────┘
+│ end_date   DATE    │  └────────────────────┘
+└────────────────────┘
 
-### 2. Profile System
-- editable public profile
-- experience entries
-- project entries
-- skill tags with proficiency level
-- avatar and cover image support
 
-### 3. Jobs
-- list jobs with company, salary, type, location, and requirements
-- save/unsave jobs
-- recruiter-ready domain model for future job posting flows
+┌──────────────────────────────────────────┐
+│                companies                 │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ name          TEXT                        │
+│ logo_url      TEXT                        │
+│ industry      TEXT                        │
+└──────────┬───────────────────────────────┘
+           │
+           │ 1:N
+           ▼
+┌──────────────────────────────────────────┐
+│                  jobs                    │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ company_id    BIGINT         FK           │
+│ title         TEXT                        │
+│ location      TEXT                        │
+│ type          ENUM           FULL_TIME    │
+│                              PART_TIME    │
+│                              INTERNSHIP   │
+│ salary_min    INT                         │
+│ salary_max    INT                         │
+│ apply_url     TEXT                        │
+│ created_at    TIMESTAMPTZ                 │
+└──────────────────────────────────────────┘
 
-### 4. Challenges
-- daily coding challenge feed
-- challenge completion tracking
-- points and streak metrics
+┌────────────────────────┐  ┌──────────────────────────────┐
+│       saved_jobs       │  │      job_preferences         │
+├────────────────────────┤  ├──────────────────────────────┤
+│ user_id  FK → users    │  │ user_id  FK → users  UNIQUE  │
+│ job_id   FK → jobs     │  │ roles    TEXT[]               │
+│ UNIQUE (user_id,job_id)│  │ locations  TEXT[]             │
+└────────────────────────┘  │ work_type  TEXT               │
+                             │ salary_min INT                │
+                             └──────────────────────────────┘
 
-### 5. Forums
-- forum categories
-- thread creation
-- upvote support
-- filtered and sorted thread views
+┌──────────────────────────────────────────┐
+│           recruiter_job_postings         │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ recruiter_id  BIGINT         FK → users   │
+│ title         TEXT                        │
+│ description   TEXT                        │
+│ location      TEXT                        │
+│ salary_range  TEXT                        │
+│ created_at    TIMESTAMPTZ                 │
+└──────────────────────────────────────────┘
 
-### 6. Messaging
-- conversation list
-- unread state
-- message thread loading
-- send/read actions
 
-### 7. Notifications
-- unread/all filtering
-- mark one or all as read
+┌──────────────────────────────────────────┐
+│             forum_categories             │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ name          TEXT                        │
+│ description   TEXT                        │
+└──────────┬───────────────────────────────┘
+           │ 1:N
+           ▼
+┌──────────────────────────────────────────┐
+│             forum_threads                │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ category_id   BIGINT         FK           │
+│ author_id     BIGINT         FK → users   │
+│ title         TEXT                        │
+│ content       TEXT                        │
+│ upvote_count  INT            default 0    │
+│ created_at    TIMESTAMPTZ                 │
+└──────────┬─────────────────┬─────────────┘
+           │ 1:N             │ 1:N
+           ▼                 ▼
+┌────────────────────┐  ┌────────────────────┐
+│   forum_replies    │  │   thread_upvotes   │
+├────────────────────┤  ├────────────────────┤
+│ id   BIGINT   PK   │  │ user_id  FK        │
+│ thread_id  FK      │  │ thread_id  FK      │
+│ author_id  FK      │  │ UNIQUE (user,thread│
+│ content  TEXT      │  └────────────────────┘
+│ created_at         │
+└────────────────────┘
 
-## API Surface
 
-Main backend modules currently exposed:
+┌──────────────────────────────────────────┐
+│             conversations                │
+├──────────────────────────────────────────┤
+│ id            BIGINT         PK           │
+│ created_at    TIMESTAMPTZ                 │
+└──────────┬───────────────────────────────┘
+           │ 1:N
+           ▼
+┌──────────────────────────────────────────┐
+│        conversation_participants         │
+├──────────────────────────────────────────┤
+│ conversation_id  FK                       │
+│ user_id          FK → users              │
+│ UNIQUE (conversation_id, user_id)        │
+└──────────┬───────────────────────────────┘
+           │ 1:N
+           ▼
+┌──────────────────────────────────────────┐
+│                messages                  │
+├──────────────────────────────────────────┤
+│ id               BIGINT      PK           │
+│ conversation_id  FK                       │
+│ sender_id        FK → users              │
+│ content          TEXT                    │
+│ created_at       TIMESTAMPTZ             │
+│                                          │
+│ delivered in real-time via WS            │
+│ /ws/messages                             │
+└──────────────────────────────────────────┘
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /api/me`
-- `GET /api/profile`
-- `PATCH /api/profile`
-- `GET /api/jobs`
-- `POST /api/jobs/{jobId}/save`
-- `GET /api/challenges`
-- `POST /api/challenges/daily/complete`
-- `GET /api/forums/categories`
-- `GET /api/forums/threads`
-- `POST /api/forums/threads`
-- `POST /api/forums/threads/{threadId}/upvote`
-- `GET /api/messages/conversations`
-- `POST /api/messages/conversations`
-- `GET /api/notifications`
-- `PATCH /api/notifications/{notificationId}/read`
-- `PATCH /api/notifications/read-all`
-- `GET /api/search`
 
-## Database Design
+┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+│    challenges      │  │challenge_completions│  │   notifications    │
+├────────────────────┤  ├────────────────────┤  ├────────────────────┤
+│ id  BIGINT    PK   │  │ user_id  FK         │  │ id  BIGINT    PK   │
+│ title  TEXT        │  │ challenge_id  FK    │  │ user_id  FK        │
+│ difficulty  TEXT   │  │ completed_at  TS    │  │ content  TEXT      │
+│ url  TEXT          │  │ UNIQUE (user,chall) │  │ is_read  BOOLEAN   │
+│ date  DATE         │  └────────────────────┘  │ created_at  TS     │
+└────────────────────┘                          └────────────────────┘
 
-The backend uses Flyway migrations to evolve schema safely. Core tables include:
+┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+│      posts         │  │   post_comments    │  │    user_follows    │
+├────────────────────┤  ├────────────────────┤  ├────────────────────┤
+│ id  BIGINT    PK   │  │ id  BIGINT    PK   │  │ follower_id  FK    │
+│ author_id  FK      │  │ post_id  FK        │  │ followee_id  FK    │
+│ content  TEXT      │  │ author_id  FK      │  │ UNIQUE (f1, f2)    │
+│ like_count  INT    │  │ content  TEXT      │  └────────────────────┘
+│ created_at  TS     │  └────────────────────┘
+└────────────────────┘
+```
 
-- `users`
-- `user_profiles`
-- `experiences`
-- `projects`
-- `skills`
-- `companies`
-- `jobs`
-- `saved_jobs`
-- `challenges`
-- `challenge_completions`
-- `forum_categories`
-- `forum_threads`
-- `thread_upvotes`
-- `conversations`
-- `conversation_participants`
-- `messages`
-- `notifications`
-- `posts`
-- `post_comments`
-- `post_likes`
-- `user_follows`
+---
 
-Recent migration updates aligned the schema with the entity model and added support for:
-- user roles
-- post comments and likes
-- follows
-- forum thread upvotes
+## Features
 
-## Local Setup
+### Authentication
+Stateless JWT for API calls; Spring session only during the OAuth redirect.
 
-### Prerequisites
-- Node.js 20+
-- Java 17
-- PostgreSQL running locally
-- Maven wrapper support
+- Email/password signup and login
+- Google OAuth2 — upserts user on first login
+- Role selection at signup: `JOB_SEEKER` or `RECRUITER`
+- Onboarding gate redirects new users before they can access protected pages
+
+### Profiles
+- Editable public profile with headline, bio, avatar, and cover image
+- Experience entries, project entries, and skill tags with proficiency level
+- Profile visibility toggle (public / private)
+- Public profile pages viewable by other users via `/profile/:userId`
+- Follow/unfollow other users
+
+### Jobs
+- Browse jobs with company, salary range, type, and location
+- Save and unsave jobs
+- Apply via external link (`apply_url`)
+- Set job preferences (target roles, locations, work type, salary floor)
+
+### Recruiter Dashboard
+- Separate dashboard for `RECRUITER`-role users
+- Post new job openings with title, description, location, and salary range
+- View all your posted jobs
+- Browse talent pool of job-seeker profiles
+
+### Daily Coding Challenges
+- Daily challenge fetched from LeetCode via a scheduled background job
+- Track completions per user
+- Points and streak display
+
+### Community Forums
+- Forum categories (e.g. career advice, interview prep, general)
+- Thread creation with title and body
+- Threaded replies per post
+- Upvote threads — one upvote per user enforced
+
+### Real-time Messaging
+- Start a direct conversation with any user
+- Send and receive messages over WebSocket (`/ws/messages`)
+- Conversation list with unread state in the floating message widget
+
+### Notifications
+- In-app notification feed
+- Filter by unread
+- Mark one or all as read
+
+### AI Assistant
+Powered by Groq's low-latency inference API.
+
+- **Cover letter generator** — paste a job description, get a tailored cover letter
+- **Career chat** — ask career questions and get contextual answers
+
+### Resume Parser
+- Upload a PDF resume
+- PDFBox extracts text server-side
+- Structured profile fields returned for auto-fill
+
+### Search
+- Global search across jobs and user profiles via Elasticsearch
+
+---
+
+## Getting Started
+
+**Prerequisites:** Docker, Docker Compose, Node.js 20+
 
 ### 1. Clone
 
 ```bash
-git clone <your-repo-url>
-cd spinnode
+git clone https://github.com/LittleTom388/SpinNode.git
+cd SpinNode
 ```
 
-### 2. Create the database
-
-Create a PostgreSQL database named:
+### 2. Environment variables
 
 ```bash
-spinnode
+export DB_URL=jdbc:postgresql://localhost:5432/spinnode
+export DB_USERNAME=postgres
+export DB_PASSWORD=your_password
+export JWT_SECRET=a-random-secret-at-least-32-characters-long
+export GOOGLE_CLIENT_ID=your_google_client_id        # optional — OAuth only
+export GOOGLE_CLIENT_SECRET=your_google_client_secret
+export GROQ_API_KEY=your_groq_api_key                # optional — AI features only
 ```
 
-### 3. Configure backend
+> Register `http://localhost:4173` as an authorised redirect URI in your Google Cloud Console credentials.
 
-The backend currently reads local config from:
-
-[application.yml](/Users/nghiempham/Projects/FULLSTACK/spinnode/server/src/main/resources/application.yml)
-
-You should update the following for your own machine before sharing or deploying:
-- PostgreSQL username/password
-- JWT secret
-- Google OAuth client ID/secret
-
-Recommended Google OAuth frontend URL in local development:
-
-```text
-http://localhost:4173
-```
-
-### 4. Start the backend
+### 3. Start the backend
 
 ```bash
+createdb spinnode
 cd server
 ./mvnw spring-boot:run
 ```
 
-Backend runs on:
+Backend runs on `http://localhost:8080`. Flyway applies all migrations on startup.
 
-```text
-http://localhost:8080
-```
-
-### 5. Start the frontend
+### 4. Start the frontend
 
 ```bash
 cd client
@@ -227,76 +362,27 @@ npm install
 npm run dev -- --host localhost --port 4173
 ```
 
-Frontend runs on:
+Frontend runs on `http://localhost:4173`. Vite proxies `/auth`, `/oauth2`, `/ws`, and `/api` to the Spring backend.
 
-```text
-http://localhost:4173
-```
-
-The Vite dev server proxies `/auth`, `/oauth2`, and `/api` requests to the Spring backend.
-
-## Build and Test
-
-### Frontend build
-
-```bash
-cd client
-npm run build
-```
-
-### Backend tests
+### Docker (backend only)
 
 ```bash
 cd server
-./mvnw test
+docker build -t spinnode-server .
+docker run -p 8080:8080 \
+  -e DB_URL=jdbc:postgresql://host.docker.internal:5432/spinnode \
+  -e DB_USERNAME=postgres \
+  -e DB_PASSWORD=your_password \
+  -e JWT_SECRET=your_jwt_secret \
+  spinnode-server
 ```
-
-## Product Decisions
-
-A few intentional choices in this project:
-
-- Split frontend and backend into separate apps to reflect real production-style ownership boundaries.
-- Use Flyway instead of `ddl-auto=create` so schema changes stay explicit and reviewable.
-- Keep auth stateless with JWT for API calls while allowing sessions only where OAuth redirect flow needs them.
-- Add user roles now so recruiter-only features can be layered in without reworking auth later.
-- Use a feature-rich domain model instead of a minimal CRUD demo so the project is interview-friendly.
-
-## What I Would Improve Next
-
-Planned or natural next steps:
-
-- recruiter dashboard for posting and managing jobs
-- job applications pipeline
-- role-based authorization at endpoint level
-- pagination and infinite scroll for large feeds
-- WebSocket-backed real-time messaging
-- file upload storage for avatars and media
-- stronger automated test coverage
-- containerized local setup with Docker Compose
-- deployment configuration
-
-## Interview Talking Points
-
-If I were discussing this project in an interview, I would highlight:
-
-- how I structured a full-stack app across frontend and backend boundaries
-- how authentication works across JWT and Google OAuth
-- how I used migrations to fix schema drift instead of hiding it
-- how I modeled user roles to support recruiter and job seeker workflows
-- how I designed reusable UI primitives and then applied them across pages
-- tradeoffs between seed data, internal APIs, and external job/challenge providers
-
-## Notes
-
-- Google OAuth in local development should use the same host consistently. `localhost` and `127.0.0.1` are treated as different redirect URIs.
-- The repo currently includes local-development configuration; sensitive credentials should be moved to environment variables before public release.
 
 ---
 
-If you are reviewing this project as a recruiter or engineer, the best pages to inspect first are:
-- signup/login
-- jobs
-- profile
-- challenges
-- forums
-- messaging
+## Roadmap
+
+- [ ] Role-based endpoint authorization (`@PreAuthorize`)
+- [ ] File upload storage for avatars and cover images (S3 / object store)
+- [ ] Docker Compose for full local stack (server + PostgreSQL + Redis)
+- [ ] Job application pipeline — apply, track status, recruiter review
+- [ ] Automated test coverage for service layer
