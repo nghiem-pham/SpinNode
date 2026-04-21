@@ -51,7 +51,7 @@ export function Login() {
   };
 
   return (
-    <div className="app-shell flex items-center justify-center px-4 py-10">
+    <div className="light app-shell flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="glass-panel rounded-[28px] p-8">
           <div className="flex justify-center mb-6">
