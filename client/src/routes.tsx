@@ -1,22 +1,29 @@
-import { createBrowserRouter, Navigate, Outlet } from "react-router";
+import { createBrowserRouter, Navigate, Outlet, useLocation, redirect } from "react-router";
+import { Landing } from "./pages/Landing";
+import { Onboarding } from "./pages/Onboarding";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
-import { Messages } from "./pages/Messages";
-import { Notifications } from "./pages/Notifications";
+import { Applications } from "./pages/Applications";
 import { Jobs } from "./pages/Jobs";
 import { Profile } from "./pages/Profile";
 import { Challenges } from "./pages/Challenges";
 import { Forums } from "./pages/Forums";
+import { ThreadDetail } from "./pages/ThreadDetail";
+import { PublicProfile } from "./pages/PublicProfile";
 import { OAuth2Success } from "./pages/OAuth2Success";
+import { RecruiterJobs } from "./pages/RecruiterJobs";
+import { TalentPool } from "./pages/TalentPool";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { MessageWidget } from "./components/MessageWidget";
 import { MessageWidgetProvider } from "./contexts/MessageWidgetContext";
 import { ConversationsProvider } from "./contexts/ConversationsContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { LoadingState } from "./components/ui/loading-state";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+function ProtectedRoute({ children, skipOnboardingCheck = false }: { children: React.ReactNode; skipOnboardingCheck?: boolean }) {
+  const { isAuthenticated, loading, onboardingComplete } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <LoadingState fullscreen />;
@@ -24,6 +31,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect to onboarding if not yet completed (skip check on the onboarding page itself)
+  if (!skipOnboardingCheck && !onboardingComplete && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return (
@@ -35,14 +47,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return <LoadingState fullscreen />;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={user?.role === 'RECRUITER' ? '/recruiter/jobs' : '/jobs'} replace />;
   }
 
   return <>{children}</>;
@@ -50,15 +62,17 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function Root() {
   return (
-    <AuthProvider>
-      <SearchProvider>
-        <ConversationsProvider>
-          <MessageWidgetProvider>
-            <Outlet />
-          </MessageWidgetProvider>
-        </ConversationsProvider>
-      </SearchProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SearchProvider>
+          <ConversationsProvider>
+            <MessageWidgetProvider>
+              <Outlet />
+            </MessageWidgetProvider>
+          </ConversationsProvider>
+        </SearchProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
@@ -70,9 +84,9 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: (
-          <ProtectedRoute>
-            <Jobs />
-          </ProtectedRoute>
+          <PublicRoute>
+            <Landing />
+          </PublicRoute>
         ),
       },
       {
@@ -96,20 +110,25 @@ export const router = createBrowserRouter([
         element: <OAuth2Success />,
       },
       {
-        path: "messages",
+        path: "onboarding",
         element: (
-          <ProtectedRoute>
-            <Messages />
+          <ProtectedRoute skipOnboardingCheck>
+            <Onboarding />
           </ProtectedRoute>
         ),
       },
       {
-        path: "notifications",
+        path: "applications",
         element: (
           <ProtectedRoute>
-            <Notifications />
+            <Applications />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "messages",
+        loader: () => redirect("/applications"),
+        element: null,
       },
       {
         path: "jobs",
@@ -140,6 +159,43 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Forums />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "forums/threads/:threadId",
+        element: (
+          <ProtectedRoute>
+            <ThreadDetail />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "people",
+        loader: () => redirect("/forums"),
+        element: null,
+      },
+      {
+        path: "recruiter/jobs",
+        element: (
+          <ProtectedRoute>
+            <RecruiterJobs />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "recruiter/talent",
+        element: (
+          <ProtectedRoute>
+            <TalentPool />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "profile/:userId",
+        element: (
+          <ProtectedRoute>
+            <PublicProfile />
           </ProtectedRoute>
         ),
       },
