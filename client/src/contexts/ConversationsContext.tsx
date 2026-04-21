@@ -4,8 +4,10 @@ import {
   fetchConversationMessages,
   markConversationRead,
   sendConversationMessage,
+  createConversation as createConversationApi,
 } from '../api/app';
 import { getStoredToken } from '../api/auth';
+import { buildWebSocketUrl } from '../config';
 
 export interface Message {
   id: string;
@@ -32,6 +34,7 @@ interface ConversationsContextType {
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => void;
   loadMessages: (conversationId: string) => Promise<void>;
   sendMessage: (conversationId: string, text: string) => Promise<void>;
+  createConversation: (participantUserId: number, message: string) => Promise<Conversation>;
   refreshConversations: () => Promise<void>;
   totalUnread: number;
   loading: boolean;
@@ -78,33 +81,42 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshConversations()
+      .catch(() => { /* backend offline — stay on empty conversations */ })
       .finally(() => setLoading(false));
   }, [refreshConversations]);
 
   useEffect(() => {
     const token = getStoredToken();
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     let socket: WebSocket | null = null;
     let retryTimer: number | null = null;
     let cancelled = false;
+    let retryDelay = 2000;
+    const MAX_DELAY = 30_000;
 
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      socket = new WebSocket(`${protocol}://${window.location.hostname}:8080/ws/messages?token=${encodeURIComponent(token)}`);
+      socket = new WebSocket(
+        `${buildWebSocketUrl('/ws/messages')}?token=${encodeURIComponent(token)}`
+      );
+
+      socket.onopen = () => {
+        retryDelay = 2000; // reset backoff on successful connection
+      };
 
       socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data);
-        if (payload?.conversation) {
-          replaceConversation(payload.conversation);
-        }
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.conversation) replaceConversation(payload.conversation);
+        } catch { /* malformed message — ignore */ }
       };
 
       socket.onclose = () => {
         if (!cancelled) {
-          retryTimer = window.setTimeout(connect, 1500);
+          retryTimer = window.setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 2, MAX_DELAY);
+            connect();
+          }, retryDelay);
         }
       };
     };
@@ -113,44 +125,49 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
-      if (retryTimer !== null) {
-        window.clearTimeout(retryTimer);
-      }
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       socket?.close();
     };
   }, [replaceConversation]);
 
-  const markAsRead = async (conversationId: string) => {
+  const markAsRead = useCallback(async (conversationId: string) => {
     await markConversationRead(Number(conversationId));
     setConversations(prev =>
       prev.map(conv =>
         conv.id === conversationId ? { ...conv, unread: 0 } : conv
       )
     );
-  };
+  }, []);
 
-  const updateConversation = (conversationId: string, updates: Partial<Conversation>) => {
+  const updateConversation = useCallback((conversationId: string, updates: Partial<Conversation>) => {
     setConversations(prev =>
       prev.map(conv =>
         conv.id === conversationId ? { ...conv, ...updates } : conv
       )
     );
-  };
+  }, []);
 
-  const loadMessages = async (conversationId: string) => {
+  const loadMessages = useCallback(async (conversationId: string) => {
     const messages = await fetchConversationMessages(Number(conversationId));
-    updateConversation(conversationId, {
-      messages: messages.map(message => ({
-        id: String(message.id),
-        senderId: String(message.senderId),
-        text: message.text,
-        timestamp: message.timestamp,
-      })),
-      unread: 0,
-    });
-  };
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              unread: 0,
+              messages: messages.map(message => ({
+                id: String(message.id),
+                senderId: String(message.senderId),
+                text: message.text,
+                timestamp: message.timestamp,
+              })),
+            }
+          : conv
+      )
+    );
+  }, []);
 
-  const sendMessage = async (conversationId: string, text: string) => {
+  const sendMessage = useCallback(async (conversationId: string, text: string) => {
     const message = await sendConversationMessage(Number(conversationId), text);
     setConversations(prev =>
       prev.map(conv =>
@@ -172,12 +189,22 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
           : conv
       )
     );
-  };
+  }, []);
+
+  const createConversation = useCallback(async (participantUserId: number, message: string): Promise<Conversation> => {
+    const conversation = await createConversationApi(participantUserId, message);
+    const mapped = mapConversation(conversation);
+    setConversations(prev => {
+      const remaining = prev.filter(c => c.id !== mapped.id);
+      return [mapped, ...remaining];
+    });
+    return mapped;
+  }, [mapConversation]);
 
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0);
 
   return (
-    <ConversationsContext.Provider value={{ conversations, markAsRead, updateConversation, loadMessages, sendMessage, refreshConversations, totalUnread, loading }}>
+    <ConversationsContext.Provider value={{ conversations, markAsRead, updateConversation, loadMessages, sendMessage, createConversation, refreshConversations, totalUnread, loading }}>
       {children}
     </ConversationsContext.Provider>
   );
