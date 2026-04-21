@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import { buildGoogleOAuthUrl } from "../config";
 
 export interface LoginRequest {
   email: string;
@@ -64,8 +65,5 @@ export async function fetchMe(token: string): Promise<UserResponse> {
 }
 
 export function redirectToGoogleOAuth(): void {
-  // Redirect to Spring Boot's OAuth2 authorization endpoint
-  // In dev, Vite proxy forwards this to localhost:8080
-  // In production, use the full backend URL
-  window.location.href = "http://localhost:8080/oauth2/authorization/google";
+  window.location.href = buildGoogleOAuthUrl();
 }

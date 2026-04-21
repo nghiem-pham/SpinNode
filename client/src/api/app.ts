@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+import { apiRequest, apiUpload } from "./client";
 
 export interface ProfileExperience {
   id: number;
@@ -34,6 +34,7 @@ export interface ProfileResponse {
   experiences: ProfileExperience[];
   projects: ProfileProject[];
   skills: ProfileSkill[];
+  profileVisible: boolean;
 }
 
 export interface UpdateProfileRequest {
@@ -80,6 +81,7 @@ export interface JobResponse {
   description: string;
   requirements: string[];
   saved: boolean;
+  applyUrl: string;
 }
 
 export interface NotificationResponse {
@@ -149,6 +151,19 @@ export interface ForumThreadResponse {
   tags: string[];
 }
 
+export interface ForumReplyResponse {
+  id: number;
+  author: {
+    id: number;
+    name: string;
+    avatar: string;
+  };
+  content: string;
+  upvotes: number;
+  createdAt: string;
+  threadId?: number;
+}
+
 export interface SearchResultResponse {
   id: string;
   type: "job" | "company" | "user";
@@ -185,9 +200,61 @@ export function fetchProfile() {
   return apiRequest<ProfileResponse>("/api/profile");
 }
 
+export function fetchPublicProfile(userId: number) {
+  return apiRequest<ProfileResponse>(`/api/profile/${userId}`);
+}
+
 export function updateProfile(data: UpdateProfileRequest) {
   return apiRequest<ProfileResponse>("/api/profile", {
     method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return apiRequest<void>("/api/me/password", {
+    method: "PATCH",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function updateVisibility(profileVisible: boolean): Promise<void> {
+  return apiRequest<void>("/api/profile/visibility", {
+    method: "PATCH",
+    body: JSON.stringify({ profileVisible }),
+  });
+}
+
+// ── Job Preferences / Onboarding ─────────────────────────────────────────────
+
+export interface PreferencesResponse {
+  experienceLevel: string;
+  jobTypes: string[];
+  remotePref: string;
+  preferredLocations: string[];
+  preferredSkills: string[];
+  salaryMin?: number;
+  salaryMax?: number;
+  onboardingComplete: boolean;
+}
+
+export interface SavePreferencesRequest {
+  experienceLevel: string;
+  jobTypes: string[];
+  remotePref: string;
+  preferredLocations: string[];
+  preferredSkills: string[];
+  salaryMin?: number;
+  salaryMax?: number;
+}
+
+export function fetchPreferences() {
+  return apiRequest<PreferencesResponse>("/api/me/preferences");
+}
+
+export function savePreferences(data: SavePreferencesRequest) {
+  return apiRequest<PreferencesResponse>("/api/me/preferences", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }
@@ -257,8 +324,123 @@ export function createForumThread(data: {
   });
 }
 
+export function deleteForumThread(threadId: number) {
+  return apiRequest<void>(`/api/forums/threads/${threadId}`, { method: "DELETE" });
+}
+
+export function fetchThread(threadId: number) {
+  return apiRequest<ForumThreadResponse>(`/api/forums/threads/${threadId}`);
+}
+
+export function fetchReplies(threadId: number) {
+  return apiRequest<ForumReplyResponse[]>(`/api/forums/threads/${threadId}/replies`);
+}
+
+export function createReply(threadId: number, content: string) {
+  return apiRequest<ForumReplyResponse>(`/api/forums/threads/${threadId}/replies`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export function fetchThreadsByUser(userId: number) {
+  return apiRequest<ForumThreadResponse[]>(`/api/forums/users/${userId}/threads`);
+}
+
+export function fetchRepliesByUser(userId: number) {
+  return apiRequest<ForumReplyResponse[]>(`/api/forums/users/${userId}/replies`);
+}
+
+export function fetchLikedThreadsByUser(userId: number) {
+  return apiRequest<ForumThreadResponse[]>(`/api/forums/users/${userId}/liked-threads`);
+}
+
+export function toggleThreadUpvote(threadId: number) {
+  return apiRequest<ForumThreadResponse>(`/api/forums/threads/${threadId}/upvote`, {
+    method: "POST",
+  });
+}
+
+// ── People / Users ────────────────────────────────────────────────────────────
+
+export interface UserSummary {
+  id: number;
+  displayName: string;
+  role: string;
+  avatar: string;
+  followersCount: number;
+  following: boolean;
+}
+
+export interface FollowResponse {
+  userId: number;
+  following: boolean;
+  followersCount: number;
+  followingCount: number;
+}
+
+export function fetchUsers(query?: string) {
+  const qs = query ? `?query=${encodeURIComponent(query)}` : "";
+  return apiRequest<UserSummary[]>(`/api/users${qs}`);
+}
+
+export function toggleFollow(userId: number) {
+  return apiRequest<FollowResponse>(`/api/users/${userId}/follow`, { method: "POST" });
+}
+
+// ── Resume ────────────────────────────────────────────────────────────────────
+
+export interface ResumeParseResponse {
+  profile: {
+    name: string;
+    bio: string;
+    location: string;
+    skills: Array<{ name: string; level: string }>;
+    experiences: Array<{ title: string; company: string; duration: string; description: string }>;
+    projects: Array<{ name: string; description: string; technologies: string[]; link?: string }>;
+  };
+  suggestedJobs: JobResponse[];
+}
+
+export function parseResume(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiUpload<ResumeParseResponse>("/api/resume/parse", form);
+}
+
+// ── AI Assistant ──────────────────────────────────────────────────────────────
+
+export interface CoverLetterRequest {
+  jobTitle: string;
+  company: string;
+  jobDescription?: string;
+  skills?: string[];
+  applicantName?: string;
+}
+
+export function generateCoverLetter(data: CoverLetterRequest) {
+  return apiRequest<{ text: string }>("/api/ai/cover-letter", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function aiChat(message: string) {
+  return apiRequest<{ text: string }>("/api/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
 export function searchApi(query: string) {
   return apiRequest<SearchResultResponse[]>(`/api/search?query=${encodeURIComponent(query)}`);
+}
+
+export function createConversation(participantUserId: number, message: string) {
+  return apiRequest<ConversationResponse>("/api/messages/conversations", {
+    method: "POST",
+    body: JSON.stringify({ participantUserId, message }),
+  });
 }
 
 export function fetchConversations() {
