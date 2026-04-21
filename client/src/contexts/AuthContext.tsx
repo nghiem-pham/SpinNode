@@ -9,7 +9,7 @@ import {
   getStoredToken,
   clearToken,
 } from '../api/auth';
-import { fetchProfile } from '../api/app';
+import { fetchProfile, fetchPreferences } from '../api/app';
 
 interface User {
   id: string;
@@ -23,6 +23,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
+  onboardingComplete: boolean;
+  setOnboardingComplete: (value: boolean) => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -36,12 +38,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
-  /** Given a valid JWT, fetch user profile and set state */
+  /** Given a valid JWT, fetch user profile + preferences and set state */
   const loadUser = useCallback(async (token: string) => {
-    const [me, profile] = await Promise.all([
+    const [me, profile, prefs] = await Promise.all([
       fetchMe(token),
       fetchProfile().catch(() => null),
+      fetchPreferences().catch(() => null),
     ]);
 
     setUser({
@@ -49,8 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: me.displayName,
       email: me.email,
       role: me.role,
-      avatar: profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${me.email}`,
+      avatar: profile?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(me.email)}&background=0e8f8f&color=fff&bold=true&rounded=true&size=128`,
     });
+    setOnboardingComplete(prefs?.onboardingComplete ?? false);
   }, []);
 
   // On mount, restore session from stored JWT
@@ -93,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     clearToken();
     setUser(null);
+    setOnboardingComplete(false);
   };
 
   const refreshUser = useCallback(async () => {
@@ -107,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         loading,
+        onboardingComplete,
+        setOnboardingComplete,
         login,
         signup,
         loginWithGoogle,
