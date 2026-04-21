@@ -12,3 +12,8 @@ client/dist/
 # Backend build output
 server/target/
 server/HELP.md
+
+# Local secrets — never commit
+server/src/main/resources/application-local.yml
+.env
+.env.local
