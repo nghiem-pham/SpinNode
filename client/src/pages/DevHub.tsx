@@ -11,6 +11,7 @@ interface Resource {
   description: string;
   url: string;
   domain: string;
+  logoUrl?: string;
   category: Category;
   tags: string[];
 }
@@ -27,7 +28,7 @@ const RESOURCES: Resource[] = [
   { name: 'Supabase',     description: 'Open-source Firebase alternative: Postgres database, auth, storage, and realtime subscriptions.', url: 'https://supabase.com',  domain: 'supabase.com',     category: 'Deploy', tags: ['BaaS', 'PostgreSQL', 'Auth'] },
 
   // ── AI & Data ─────────────────────────────────────────────────────────────
-  { name: 'Google Colab',    description: 'Free Jupyter notebooks in the cloud with GPU/TPU access — the go-to for ML experiments.',               url: 'https://colab.research.google.com', domain: 'colab.research.google.com', category: 'AI & Data', tags: ['Jupyter', 'GPU', 'Python'] },
+  { name: 'Google Colab',    description: 'Free Jupyter notebooks in the cloud with GPU/TPU access — the go-to for ML experiments.',               url: 'https://colab.research.google.com', domain: 'colab.research.google.com', logoUrl: 'https://colab.research.google.com/img/colab_favicon_256px.png', category: 'AI & Data', tags: ['Jupyter', 'GPU', 'Python'] },
   { name: 'Hugging Face',    description: 'The GitHub of machine learning — models, datasets, spaces, and the transformers library.',              url: 'https://huggingface.co',     domain: 'huggingface.co',     category: 'AI & Data',   tags: ['ML Models', 'NLP', 'Open Source'] },
   { name: 'Kaggle',          description: 'Data science competitions, free GPUs, 50k+ public datasets, and structured learning courses.',         url: 'https://kaggle.com',         domain: 'kaggle.com',         category: 'AI & Data',   tags: ['Competitions', 'Datasets', 'GPU'] },
   { name: 'Claude',          description: "Anthropic's AI for coding, writing, analysis, and complex reasoning tasks.",                           url: 'https://claude.ai',          domain: 'claude.ai',          category: 'AI & Data',   tags: ['LLM', 'Coding', 'Analysis'] },
@@ -43,12 +44,12 @@ const RESOURCES: Resource[] = [
   // ── Algorithms & Interview Prep ───────────────────────────────────────────
   { name: 'LeetCode',   description: '3500+ algorithm problems with company-tagged questions. The #1 platform for FAANG interview prep.', url: 'https://leetcode.com',   domain: 'leetcode.com',   category: 'Algorithms', tags: ['DSA', 'FAANG', 'Interview'] },
   { name: 'HackerRank', description: 'Coding challenges across algorithms, SQL, regex, and more. Used by companies for technical screening.',  url: 'https://hackerrank.com', domain: 'hackerrank.com', category: 'Algorithms', tags: ['Interview', 'SQL', 'Multi-lang'] },
-  { name: 'Codeforces', description: 'Competitive programming contests and problem archive — trusted by CP champions worldwide.',               url: 'https://codeforces.com', domain: 'codeforces.com', category: 'Algorithms', tags: ['Competitive', 'Contests', 'CP'] },
+  { name: 'Codeforces', description: 'Competitive programming contests and problem archive — trusted by CP champions worldwide.',               url: 'https://codeforces.com', domain: 'codeforces.com', logoUrl: 'https://codeforces.org/s/0/favicon-96x96.png', category: 'Algorithms', tags: ['Competitive', 'Contests', 'CP'] },
   { name: 'NeetCode',   description: 'Curated LeetCode roadmap with video walkthroughs — the fastest path to interview-ready.',                url: 'https://neetcode.io',    domain: 'neetcode.io',    category: 'Algorithms', tags: ['Roadmap', 'Video', 'DSA'] },
 
   // ── API Testing & Design ──────────────────────────────────────────────────
   { name: 'Postman',           description: 'The industry standard for API development — build, test, mock, and document REST, GraphQL, and gRPC.', url: 'https://postman.com', domain: 'postman.com', category: 'API Testing', tags: ['REST', 'GraphQL', 'Mocking'] },
-  { name: 'Swagger / OpenAPI', description: 'Design-first API specification with interactive docs, code generation, and team collaboration.',      url: 'https://swagger.io',  domain: 'swagger.io',  category: 'API Testing', tags: ['OpenAPI', 'Docs', 'Design-First'] },
+  { name: 'Swagger / OpenAPI', description: 'Design-first API specification with interactive docs, code generation, and team collaboration.',      url: 'https://swagger.io',  domain: 'swagger.io',  logoUrl: 'https://static1.smartbear.co/swagger/media/assets/swagger_fav.png', category: 'API Testing', tags: ['OpenAPI', 'Docs', 'Design-First'] },
 ];
 
 // ── Category config ───────────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
       <div className="flex items-start gap-3">
         <div className="size-10 rounded-xl border border-gray-100 bg-white flex-shrink-0 overflow-hidden shadow-sm flex items-center justify-center">
           <img
-            src={`https://www.google.com/s2/favicons?domain=${resource.domain}&sz=64`}
+            src={resource.logoUrl ?? `https://img.logo.dev/${resource.domain}?token=${import.meta.env.VITE_LOGO_DEV_TOKEN}`}
             alt={resource.name}
             className="size-6 object-contain"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -119,7 +120,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export function Challenges() {
+export function DevHub() {
   const [search,   setSearch]   = useState('');
   const [category, setCategory] = useState<Category | 'All'>('All');
 

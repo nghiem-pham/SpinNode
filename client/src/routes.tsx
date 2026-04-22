@@ -3,10 +3,10 @@ import { Landing } from "./pages/Landing";
 import { Onboarding } from "./pages/Onboarding";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
-import { Applications } from "./pages/Applications";
+import { Resume } from "./pages/Resume";
 import { Jobs } from "./pages/Jobs";
 import { Profile } from "./pages/Profile";
-import { Challenges } from "./pages/Challenges";
+import { DevHub } from "./pages/DevHub";
 import { Forums } from "./pages/Forums";
 import { ThreadDetail } from "./pages/ThreadDetail";
 import { PublicProfile } from "./pages/PublicProfile";
@@ -118,16 +118,16 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "applications",
+        path: "resume",
         element: (
           <ProtectedRoute>
-            <Applications />
+            <Resume />
           </ProtectedRoute>
         ),
       },
       {
         path: "messages",
-        loader: () => redirect("/applications"),
+        loader: () => redirect("/resume"),
         element: null,
       },
       {
@@ -139,10 +139,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "challenges",
+        path: "devhub",
         element: (
           <ProtectedRoute>
-            <Challenges />
+            <DevHub />
           </ProtectedRoute>
         ),
       },
