@@ -97,6 +97,23 @@ public class ForumService {
     }
 
     @Transactional
+    public void deleteReply(String email, Long threadId, Long replyId) {
+        User user = userService.getRequiredByEmail(email);
+        ForumReply reply = replyRepository.findById(replyId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Reply not found"));
+        if (!reply.getThread().getId().equals(threadId)) {
+            throw new ResponseStatusException(NOT_FOUND, "Reply not found in this thread");
+        }
+        if (!reply.getAuthor().getId().equals(user.getId())) {
+            throw new ResponseStatusException(FORBIDDEN, "You can only delete your own replies");
+        }
+        ForumThread thread = reply.getThread();
+        thread.setReplies(Math.max(0, thread.getReplies() - 1));
+        threadRepository.save(thread);
+        replyRepository.delete(reply);
+    }
+
+    @Transactional
     public void deleteThread(String email, Long threadId) {
         User user = userService.getRequiredByEmail(email);
         ForumThread thread = threadRepository.findById(threadId)
@@ -220,7 +237,7 @@ public class ForumService {
     }
 
     private ForumThreadResponse toResponse(ForumThread thread) {
-        String avatar = userService.defaultAvatar(thread.getAuthor().getEmail());
+        String avatar = userService.avatarFor(thread.getAuthor());
         return new ForumThreadResponse(
                 thread.getId(),
                 thread.getTitle(),
@@ -239,7 +256,7 @@ public class ForumService {
     }
 
     private ForumReplyResponse toReplyResponse(ForumReply reply) {
-        String avatar = userService.defaultAvatar(reply.getAuthor().getEmail());
+        String avatar = userService.avatarFor(reply.getAuthor());
         return new ForumReplyResponse(
                 reply.getId(),
                 new ForumReplyResponse.AuthorSummary(reply.getAuthor().getId(), reply.getAuthor().getDisplayName(), avatar),

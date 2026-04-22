@@ -16,7 +16,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.npham.spinnode.modules.ai.dto.AiTextResponse;
 import com.npham.spinnode.modules.ai.dto.ChatRequest;
-import com.npham.spinnode.modules.ai.dto.CoverLetterRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,35 +30,6 @@ public class AiService {
     private String groqApiKey;
 
     private final ObjectMapper objectMapper;
-
-    public AiTextResponse generateCoverLetter(CoverLetterRequest req) {
-        String skills = req.skills() != null ? String.join(", ", req.skills()) : "";
-        String jobDesc = req.jobDescription() != null && !req.jobDescription().isBlank()
-                ? "\nJob Description: " + req.jobDescription()
-                : "";
-        String name = req.applicantName() != null && !req.applicantName().isBlank()
-                ? req.applicantName()
-                : "the applicant";
-
-        String prompt = """
-                You are an expert career coach and professional writer.
-                Write a compelling, personalized cover letter for a job application.
-
-                Applicant Name: %s
-                Job Title: %s
-                Company: %s%s
-                Applicant's Skills: %s
-
-                Write a professional 3-4 paragraph cover letter:
-                1. Opening — hook with genuine enthusiasm and why this company
-                2. Body — highlight 2-3 relevant skills with brief examples
-                3. Closing — express desire to discuss further, thank them
-
-                Use the applicant's actual name. Do not use any placeholder text.
-                """.formatted(name, req.jobTitle(), req.company(), jobDesc, skills);
-
-        return new AiTextResponse(callGroq(prompt));
-    }
 
     public AiTextResponse chat(ChatRequest req) {
         String systemContext = """

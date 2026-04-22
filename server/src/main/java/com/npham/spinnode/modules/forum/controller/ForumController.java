@@ -74,6 +74,12 @@ public class ForumController {
         return forumService.createReply(principal.getName(), threadId, request);
     }
 
+    @DeleteMapping("/threads/{threadId}/replies/{replyId}")
+    public ResponseEntity<Void> deleteReply(Principal principal, @PathVariable Long threadId, @PathVariable Long replyId) {
+        forumService.deleteReply(principal.getName(), threadId, replyId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/threads/{threadId}/upvote")
     public ForumThreadResponse toggleUpvote(Principal principal, @PathVariable Long threadId) {
         return forumService.toggleUpvote(principal.getName(), threadId);

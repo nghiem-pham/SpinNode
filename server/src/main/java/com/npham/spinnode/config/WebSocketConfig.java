@@ -19,6 +19,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(messagingWebSocketHandler, "/ws/messages")
-                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+                .setAllowedOriginPatterns(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "https://spin-node.com",
+                        "https://www.spin-node.com",
+                        "https://spin-node-demo.vercel.app"
+                );
     }
 }
