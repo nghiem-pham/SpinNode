@@ -46,7 +46,7 @@ function convertParsedToResumeData(profile: ResumeParseResponse['profile']): Res
   };
 }
 
-export function Applications() {
+export function Resume() {
 
   // ── Resume tab ───────────────────────────────────────────────────────────────
   const [showBuilder, setShowBuilder] = useState(false);
