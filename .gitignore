@@ -1,26 +1,19 @@
+# Editor files
+.vscode/
+!.vscode/extensions.json
+
 # macOS
 .DS_Store
 
-# Logs
-*.log
-logs/
+# Frontend build and dependencies
+client/node_modules/
+client/dist/
 
-# Maven
-target/
-!**/src/main/**/target/
-!**/src/test/**/target/
-dependency-reduced-pom.xml
+# Backend build output
+server/target/
+server/HELP.md
 
-# Java
-*.class
-
-# Spring Boot
-HELP.md
-
-# Env / secrets
+# Local secrets — never commit
+server/src/main/resources/application-local.yml
 .env
-application-local.yml
-
-# VS Code
-.vscode/
-
+.env.local
