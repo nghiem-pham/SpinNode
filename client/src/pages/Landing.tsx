@@ -1,17 +1,17 @@
 import { Link } from 'react-router';
-import { Briefcase, Code2, Users, MessageSquare, ScrollText, Globe, Star, ArrowRight } from 'lucide-react';
+import { Briefcase, LayoutGrid, Users, MessageSquare, ScrollText, Globe, Star, ArrowRight } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo';
 
 const FEATURES = [
   {
     icon: Briefcase,
     title: 'Job Feed',
-    description: 'Browse curated tech roles, save favourites, and apply in one tap.',
+    description: 'Browse 120+ real internship and SWE roles, save favourites, and apply in one tap.',
   },
   {
-    icon: Code2,
-    title: 'Coding Challenges',
-    description: 'Sharpen your skills with real-world challenges and let your solve rate speak for you.',
+    icon: ScrollText,
+    title: 'Resume Builder',
+    description: 'Upload your PDF resume and let SpinNode auto-fill your profile in seconds.',
   },
   {
     icon: Users,
@@ -24,9 +24,9 @@ const FEATURES = [
     description: 'Ask questions and discuss industry trends in a developer-first community.',
   },
   {
-    icon: ScrollText,
-    title: 'Resume Builder',
-    description: 'Upload your PDF resume and let SpinNode auto-fill your profile in seconds.',
+    icon: LayoutGrid,
+    title: 'Dev Hub',
+    description: 'A curated directory of 23 developer tools across deploy, AI, algorithms, and more.',
   },
   {
     icon: Globe,
@@ -114,7 +114,7 @@ export function Landing() {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-3">Everything in one place</h2>
-          <p className="text-gray-500 text-lg max-w-xl mx-auto">Jobs, skills, community, and AI tools — built for developers.</p>
+          <p className="text-gray-500 text-lg max-w-xl mx-auto">Jobs, resume, community, and developer tools — built for developers.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map(({ icon: Icon, title, description }) => (
