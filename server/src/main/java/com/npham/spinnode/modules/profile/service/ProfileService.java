@@ -148,7 +148,7 @@ public class ProfileService {
                 user.getEmail(),
                 profile.getBio(),
                 profile.getLocation(),
-                profile.getAvatarUrl(),
+                UserService.isUploadedAvatar(profile.getAvatarUrl()) ? profile.getAvatarUrl() : null,
                 profile.getCoverUrl(),
                 user.getCreatedAt(),
                 experiences,

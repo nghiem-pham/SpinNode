@@ -212,7 +212,7 @@ public class MessagingService {
                 conversation.getId(),
                 otherUser.getId(),
                 otherUser.getDisplayName(),
-                userService.defaultAvatar(otherUser.getEmail()),
+                userService.avatarFor(otherUser),
                 lastMessage == null ? "" : lastMessage.getContent(),
                 lastMessage == null ? conversation.getUpdatedAt() : lastMessage.getCreatedAt(),
                 unread,
@@ -226,7 +226,7 @@ public class MessagingService {
                 message.getId(),
                 message.getSender().getId(),
                 message.getSender().getDisplayName(),
-                userService.defaultAvatar(message.getSender().getEmail()),
+                userService.avatarFor(message.getSender()),
                 message.getContent(),
                 message.getCreatedAt()
         );

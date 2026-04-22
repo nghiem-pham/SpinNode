@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.npham.spinnode.modules.ai.dto.AiTextResponse;
 import com.npham.spinnode.modules.ai.dto.ChatRequest;
-import com.npham.spinnode.modules.ai.dto.CoverLetterRequest;
 import com.npham.spinnode.modules.ai.service.AiService;
 
 import jakarta.validation.Valid;
@@ -19,11 +18,6 @@ import lombok.RequiredArgsConstructor;
 public class AiController {
 
     private final AiService aiService;
-
-    @PostMapping("/cover-letter")
-    public AiTextResponse coverLetter(@Valid @RequestBody CoverLetterRequest request) {
-        return aiService.generateCoverLetter(request);
-    }
 
     @PostMapping("/chat")
     public AiTextResponse chat(@Valid @RequestBody ChatRequest request) {

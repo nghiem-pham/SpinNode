@@ -80,7 +80,7 @@ public class UserController {
                         u.getId(),
                         u.getDisplayName(),
                         u.getRole().name(),
-                        userService.defaultAvatar(u.getEmail()),
+                        userService.avatarFor(u),
                         followService.getFollowersCount(u.getId()),
                         followService.isFollowing(currentUser.getId(), u.getId())
                 ))

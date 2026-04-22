@@ -92,6 +92,18 @@ public class UserService {
         return userRepository.findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query);
     }
 
+    public String avatarFor(User user) {
+        return userProfileRepository.findByUser_Id(user.getId())
+                .map(UserProfile::getAvatarUrl)
+                .filter(UserService::isUploadedAvatar)
+                .orElse(null);
+    }
+
+    /** Returns true only for user-uploaded images (base64 data URLs). */
+    public static boolean isUploadedAvatar(String url) {
+        return url != null && url.startsWith("data:");
+    }
+
     public String defaultAvatar(String seed) {
         return "https://ui-avatars.com/api/?name=" + seed
                 + "&background=0e8f8f&color=fff&bold=true&rounded=true&size=128";
