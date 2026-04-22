@@ -145,7 +145,7 @@ export function Messages() {
                 >
                   <div className="flex items-start gap-3">
                     <div className="relative">
-                      <Avatar name={conversation.name} size={48} />
+                      <Avatar name={conversation.name} src={conversation.avatar} size={48} />
                       {conversation.online && (
                         <div className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full border-2 border-white" />
                       )}
@@ -191,7 +191,7 @@ export function Messages() {
                     <ArrowLeft className="size-4 text-gray-600" />
                   </button>
                   <div className="relative">
-                    <Avatar name={selectedConversation.name} size={40} />
+                    <Avatar name={selectedConversation.name} src={selectedConversation.avatar} size={40} />
                     {selectedConversation.online && (
                       <div className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full border-2 border-white" />
                     )}
@@ -222,6 +222,7 @@ export function Messages() {
                       <div className={`flex gap-2 max-w-[70%] ${isMe ? 'flex-row-reverse' : ''}`}>
                         <Avatar
                           name={isMe ? (user?.name ?? '') : selectedConversation.name}
+                          src={isMe ? user?.avatar : selectedConversation.avatar}
                           size={32}
                           className="flex-shrink-0"
                         />

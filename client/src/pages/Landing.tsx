@@ -25,8 +25,8 @@ const FEATURES = [
   },
   {
     icon: ScrollText,
-    title: 'AI Applications',
-    description: 'Scan your resume, generate tailored cover letters, and get AI writing assistance.',
+    title: 'Resume Builder',
+    description: 'Upload your PDF resume and let SpinNode auto-fill your profile in seconds.',
   },
   {
     icon: Globe,
@@ -97,7 +97,7 @@ export function Landing() {
         </h1>
 
         <p className="text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Discover jobs you'll love, prove your skills with real challenges, and connect with the engineers and companies shaping tech.
+          Discover jobs you'll love, build your developer profile, and connect with the engineers and companies shaping tech.
         </p>
 
         <Link

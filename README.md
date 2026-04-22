@@ -1,8 +1,8 @@
 # SpinNode
 
-A full-stack social hiring platform for early-career engineers and recruiters. Job seekers build profiles, browse jobs, complete daily coding challenges, and connect with peers. Recruiters post openings and browse a talent pool. Both sides share community forums, direct messaging, and an AI career assistant.
+A full-stack social hiring platform connecting job seekers and recruiters. Streamlined job discovery, a developer resource hub, community forums, and real-time direct messaging — all in one place.
 
-**Live demo:** [spin-node.com](https://www.spin-node.com)
+**Live:** [spin-node.com](https://spin-node.com)
 
 ---
 
@@ -10,16 +10,15 @@ A full-stack social hiring platform for early-career engineers and recruiters. J
 
 | Layer | Technology |
 |---|---|
-| Backend | Java 17, Spring Boot 3.5.9, Spring Security, Spring WebSocket |
-| Auth | JWT (JJWT 0.12.6), Google OAuth2 |
-| Database | PostgreSQL 16, Flyway (26 migrations) |
-| Cache | Redis 7 |
-| Search | Elasticsearch |
-| AI | Groq API (cover letters, career chat) |
-| Resume | Apache PDFBox 3 (PDF parsing) |
-| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4 |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS 4, React Router 7 |
 | UI | Radix UI, Lucide React, Sonner |
-| Infra | Docker, Vercel |
+| Backend | Java 17, Spring Boot 3.5, Spring Security + JWT |
+| Database | PostgreSQL 18 |
+| Auth | JWT (60 min access / 7 day refresh), Google OAuth 2.0 |
+| AI | Groq API — `llama-3.3-70b-versatile` (resume parsing + job matching) |
+| Resume | Apache PDFBox 3.0.3 (PDF → extracted text → Groq) |
+| Logos | logo.dev API |
+| Infra | Docker (multi-stage), Render (backend), Vercel (frontend) |
 
 ---
 
@@ -29,360 +28,180 @@ A full-stack social hiring platform for early-career engineers and recruiters. J
 
 ```
 Browser (React + Vite)
-  │  REST API calls ─────────────────────────────────────┐
-  │  WebSocket (real-time messages)                       │
-  │  OAuth2 redirect flow                                 │
-  ▼                                                       │
-Spring Boot (port 8080)                                   │
-  ├─ AuthController      /auth/register, /auth/login      │
-  ├─ UserController      /api/me, /api/users              │
-  ├─ ProfileController   /api/profile                     │
-  ├─ JobController       /api/jobs                        │
-  ├─ ForumController     /api/forums                      │
-  ├─ MessagingController /api/messages + WS /ws/messages  │
-  ├─ NotificationController /api/notifications            │
-  ├─ ChallengeController /api/challenges                  │
-  ├─ RecruiterController /api/recruiter                   │
-  ├─ AiController        /api/ai  ──────────── Groq API   │
-  ├─ ResumeController    /api/resume ──── PDFBox parser   │
-  ├─ SearchController    /api/search ──── Elasticsearch   │
-  └─ PostController      /api/posts                       │
-       │                                                  │
-       ├── PostgreSQL (JPA + Flyway)                      │
-       └── Redis (session cache)                    ◄─────┘
-
-OAuth2 flow:
-  Browser → /oauth2/authorization/google → Google → /auth/callback
-  → Spring exchanges code → JWT issued → frontend stores token
+  │  REST API calls
+  │  WebSocket (/ws/messages)
+  ▼
+Spring Boot 3.5 (port 8080)
+  ├─ REST API        auth, jobs, profile, forums, messaging, search, recruiter
+  ├─ WebSocket hub   fan-out to conversation participants
+  ├─ Groq AI         resume parsing + skill-based job matching
+  └─ PDFBox          PDF → extracted text → Groq → structured profile fields
+        │
+        ▼
+  PostgreSQL  ── users, jobs, companies, profiles, forums, messages, preferences
 ```
 
 ### Key Data Flows
 
 | Flow | Path |
 |---|---|
-| Email signup | `POST /auth/register` → hash password → persist user → return JWT |
-| Google login | Browser → Google OAuth → `/auth/callback` → upsert user → return JWT |
-| JWT auth | Every request → `JwtAuthFilter` → validate token → inject `SecurityContext` |
-| Onboarding gate | Frontend `ProtectedRoute` checks `onboardingComplete` → redirect to `/onboarding` |
-| Real-time message | `POST /api/messages/.../messages` → persist → `MessagingRealtimeService` → WebSocket push |
-| AI cover letter | `POST /api/ai/cover-letter` → Spring → Groq REST API → streamed text response |
-| Resume parse | `POST /api/resume/parse` → PDFBox extracts text → structured profile fields returned |
-| Daily challenge | `ChallengeScheduler` (cron) → fetches LeetCode daily → persists → available at `/api/challenges` |
+| Job discovery | Fetch all jobs → client-side filter + sort by preference match score |
+| Resume match | Upload PDF → PDFBox extracts text → Groq parses skills → top 5 jobs matched by skill overlap |
+| Direct message | Send via REST → WebSocket fan-out to conversation participants → archived in PostgreSQL |
+| Follow | POST /users/:id/follow → follower count updated → reflected in People directory |
+| Forum reply | POST reply → reply count incremented on thread → visible in thread detail |
+| Profile update | PATCH /profile → avatar/cover stored as base64 TEXT → served back on next load |
 
-### Database Schema
+### Database Schema (key tables)
 
 ```
-┌──────────────────────────────────────────┐
-│                  users                   │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ email         TEXT           UNIQUE       │
-│ display_name  TEXT                        │
-│ password_hash TEXT           nullable     │  null when Google OAuth
-│ google_id     TEXT           nullable     │
-│ role          ENUM           JOB_SEEKER   │
-│                              RECRUITER    │
-│ created_at    TIMESTAMPTZ                 │
-└──────────┬───────────────────────────────┘
-           │
-           │ 1:1
-           ▼
-┌──────────────────────────────────────────┐
-│              user_profiles               │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ user_id       BIGINT         FK → users   │
-│ headline      TEXT                        │
-│ bio           TEXT                        │
-│ avatar_url    TEXT                        │
-│ cover_url     TEXT                        │
-│ location      TEXT                        │
-│ website       TEXT                        │
-│ visibility    ENUM           PUBLIC       │
-│                              PRIVATE      │
-└──────────┬───────────────────────────────┘
-           │
-           │ 1:N
-           ▼
-┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-│    experiences     │  │  profile_projects  │  │    user_skills     │
-├────────────────────┤  ├────────────────────┤  ├────────────────────┤
-│ id   BIGINT    PK  │  │ id   BIGINT    PK  │  │ id   BIGINT    PK  │
-│ user_id  FK        │  │ user_id  FK        │  │ user_id  FK        │
-│ title  TEXT        │  │ name  TEXT         │  │ name  TEXT         │
-│ company  TEXT      │  │ description  TEXT  │  │ proficiency  TEXT  │
-│ start_date DATE    │  │ url  TEXT          │  └────────────────────┘
-│ end_date   DATE    │  └────────────────────┘
-└────────────────────┘
+┌──────────────────────────────────────┐
+│               users                  │
+├──────────────────────────────────────┤
+│ id            BIGSERIAL              │ PK
+│ email         VARCHAR                │ UNIQUE
+│ display_name  VARCHAR                │
+│ password_hash VARCHAR                │ nullable — null for OAuth users
+│ role          ENUM                   │ JOB_SEEKER | RECRUITER
+│ created_at    TIMESTAMPTZ            │
+└──────────────┬───────────────────────┘
+               │ 1:1
+               ▼
+┌──────────────────────────────────────┐
+│           user_profiles              │
+├──────────────────────────────────────┤
+│ id             BIGSERIAL             │ PK
+│ user_id        BIGINT                │ FK → users  ON DELETE CASCADE
+│ bio            TEXT                  │
+│ location       VARCHAR               │
+│ avatar_url     TEXT                  │ base64 data URL or null
+│ cover_url      TEXT                  │ base64 data URL or null
+│ profile_visible BOOLEAN              │ default TRUE
+└──────────────────────────────────────┘
 
+┌──────────────────────────────────────┐
+│               jobs                   │
+├──────────────────────────────────────┤
+│ id            BIGSERIAL              │ PK
+│ title         VARCHAR                │
+│ company_id    BIGINT                 │ FK → companies
+│ location      VARCHAR                │
+│ type          VARCHAR                │ Full-time | Internship | …
+│ description   TEXT                   │
+│ requirements  TEXT[]                 │
+│ salary        VARCHAR                │ nullable
+│ apply_url     TEXT                   │
+│ posted_at     TIMESTAMPTZ            │
+└──────────────────────────────────────┘
 
-┌──────────────────────────────────────────┐
-│                companies                 │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ name          TEXT                        │
-│ logo_url      TEXT                        │
-│ industry      TEXT                        │
-└──────────┬───────────────────────────────┘
-           │
-           │ 1:N
-           ▼
-┌──────────────────────────────────────────┐
-│                  jobs                    │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ company_id    BIGINT         FK           │
-│ title         TEXT                        │
-│ location      TEXT                        │
-│ type          ENUM           FULL_TIME    │
-│                              PART_TIME    │
-│                              INTERNSHIP   │
-│ salary_min    INT                         │
-│ salary_max    INT                         │
-│ apply_url     TEXT                        │
-│ created_at    TIMESTAMPTZ                 │
-└──────────────────────────────────────────┘
-
-┌────────────────────────┐  ┌──────────────────────────────┐
-│       saved_jobs       │  │      job_preferences         │
-├────────────────────────┤  ├──────────────────────────────┤
-│ user_id  FK → users    │  │ user_id  FK → users  UNIQUE  │
-│ job_id   FK → jobs     │  │ roles    TEXT[]               │
-│ UNIQUE (user_id,job_id)│  │ locations  TEXT[]             │
-└────────────────────────┘  │ work_type  TEXT               │
-                             │ salary_min INT                │
-                             └──────────────────────────────┘
-
-┌──────────────────────────────────────────┐
-│           recruiter_job_postings         │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ recruiter_id  BIGINT         FK → users   │
-│ title         TEXT                        │
-│ description   TEXT                        │
-│ location      TEXT                        │
-│ salary_range  TEXT                        │
-│ created_at    TIMESTAMPTZ                 │
-└──────────────────────────────────────────┘
-
-
-┌──────────────────────────────────────────┐
-│             forum_categories             │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ name          TEXT                        │
-│ description   TEXT                        │
-└──────────┬───────────────────────────────┘
-           │ 1:N
-           ▼
-┌──────────────────────────────────────────┐
-│             forum_threads                │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ category_id   BIGINT         FK           │
-│ author_id     BIGINT         FK → users   │
-│ title         TEXT                        │
-│ content       TEXT                        │
-│ upvote_count  INT            default 0    │
-│ created_at    TIMESTAMPTZ                 │
-└──────────┬─────────────────┬─────────────┘
-           │ 1:N             │ 1:N
-           ▼                 ▼
-┌────────────────────┐  ┌────────────────────┐
-│   forum_replies    │  │   thread_upvotes   │
-├────────────────────┤  ├────────────────────┤
-│ id   BIGINT   PK   │  │ user_id  FK        │
-│ thread_id  FK      │  │ thread_id  FK      │
-│ author_id  FK      │  │ UNIQUE (user,thread│
-│ content  TEXT      │  └────────────────────┘
-│ created_at         │
-└────────────────────┘
-
-
-┌──────────────────────────────────────────┐
-│             conversations                │
-├──────────────────────────────────────────┤
-│ id            BIGINT         PK           │
-│ created_at    TIMESTAMPTZ                 │
-└──────────┬───────────────────────────────┘
-           │ 1:N
-           ▼
-┌──────────────────────────────────────────┐
-│        conversation_participants         │
-├──────────────────────────────────────────┤
-│ conversation_id  FK                       │
-│ user_id          FK → users              │
-│ UNIQUE (conversation_id, user_id)        │
-└──────────┬───────────────────────────────┘
-           │ 1:N
-           ▼
-┌──────────────────────────────────────────┐
-│                messages                  │
-├──────────────────────────────────────────┤
-│ id               BIGINT      PK           │
-│ conversation_id  FK                       │
-│ sender_id        FK → users              │
-│ content          TEXT                    │
-│ created_at       TIMESTAMPTZ             │
-│                                          │
-│ delivered in real-time via WS            │
-│ /ws/messages                             │
-└──────────────────────────────────────────┘
-
-
-┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-│    challenges      │  │challenge_completions│  │   notifications    │
-├────────────────────┤  ├────────────────────┤  ├────────────────────┤
-│ id  BIGINT    PK   │  │ user_id  FK         │  │ id  BIGINT    PK   │
-│ title  TEXT        │  │ challenge_id  FK    │  │ user_id  FK        │
-│ difficulty  TEXT   │  │ completed_at  TS    │  │ content  TEXT      │
-│ url  TEXT          │  │ UNIQUE (user,chall) │  │ is_read  BOOLEAN   │
-│ date  DATE         │  └────────────────────┘  │ created_at  TS     │
-└────────────────────┘                          └────────────────────┘
-
-┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-│      posts         │  │   post_comments    │  │    user_follows    │
-├────────────────────┤  ├────────────────────┤  ├────────────────────┤
-│ id  BIGINT    PK   │  │ id  BIGINT    PK   │  │ follower_id  FK    │
-│ author_id  FK      │  │ post_id  FK        │  │ followee_id  FK    │
-│ content  TEXT      │  │ author_id  FK      │  │ UNIQUE (f1, f2)    │
-│ like_count  INT    │  │ content  TEXT      │  └────────────────────┘
-│ created_at  TS     │  └────────────────────┘
-└────────────────────┘
+┌──────────────────────────────────────┐
+│           conversations              │
+├──────────────────────────────────────┤
+│ id            BIGSERIAL              │ PK
+│ created_at    TIMESTAMPTZ            │
+│                                      │
+│ ← conversation_participants          │
+│   user_id FK, conversation_id FK     │
+└──────────────┬───────────────────────┘
+               │ 1:N
+               ▼
+┌──────────────────────────────────────┐
+│             messages                 │
+├──────────────────────────────────────┤
+│ id            BIGSERIAL              │ PK
+│ conversation_id BIGINT               │ FK → conversations
+│ sender_id     BIGINT                 │ FK → users
+│ content       TEXT                   │
+│ read          BOOLEAN                │ default FALSE
+│ sent_at       TIMESTAMPTZ            │
+└──────────────────────────────────────┘
 ```
 
 ---
 
 ## Features
 
-### Authentication
-Stateless JWT for API calls; Spring session only during the OAuth redirect.
+### Smart Job Board
+Two-panel layout with 120+ real Summer 2026 SWE & AI internship roles.
 
-- Email/password signup and login
-- Google OAuth2 — upserts user on first login
-- Role selection at signup: `JOB_SEEKER` or `RECRUITER`
-- Onboarding gate redirects new users before they can access protected pages
+- Jobs ranked by match score against your onboarding preferences
+- Client-side filters: work mode, job type, experience level, date posted, location, saved-only
+- Upload a PDF or TXT resume — Groq extracts your skills and returns the top 5 matched jobs
+- Save jobs with a bookmark; track applications locally
+- Direct apply links to company career pages
 
-### Profiles
-- Editable public profile with headline, bio, avatar, and cover image
-- Experience entries, project entries, and skill tags with proficiency level
-- Profile visibility toggle (public / private)
-- Public profile pages viewable by other users via `/profile/:userId`
-- Follow/unfollow other users
+### Profile Builder
+Full public profile with visibility control.
 
-### Jobs
-- Browse jobs with company, salary range, type, and location
-- Save and unsave jobs
-- Apply via external link (`apply_url`)
-- Set job preferences (target roles, locations, work type, salary floor)
+- Edit bio, location, avatar, and cover image (crop/zoom editor included)
+- Upload a PDF resume — Groq extracts name, bio, location, skills, experiences, and projects and pre-fills your profile
+- Add and reorder work experience, skills, and projects
+- Toggle profile visibility (public / private)
+- Public profile viewable by other users and recruiters
 
-### Recruiter Dashboard
-- Separate dashboard for `RECRUITER`-role users
-- Post new job openings with title, description, location, and salary range
-- View all your posted jobs
-- Browse talent pool of job-seeker profiles
+### Dev Hub
+Curated directory of 23 developer tools across five categories.
 
-### Daily Coding Challenges
-- Daily challenge fetched from LeetCode via a scheduled background job
-- Track completions per user
-- Points and streak display
+- Categories: Dev Tools, Algorithms, AI & Data, Deploy, API Testing
+- Search by name, description, or tag
+- Quick-launch cards with logos, descriptions, and tags
 
 ### Community Forums
-- Forum categories (e.g. career advice, interview prep, general)
-- Thread creation with title and body
-- Threaded replies per post
-- Upvote threads — one upvote per user enforced
+Threaded discussion board with real-time counts.
 
-### Real-time Messaging
-- Start a direct conversation with any user
-- Send and receive messages over WebSocket (`/ws/messages`)
-- Conversation list with unread state in the floating message widget
+- Browse threads by category with view, reply, and upvote counts
+- Create threads with title, body, and category tags
+- Inline replies with upvoting and pinned/locked status
+- Delete your own replies; reply count updates in real time
 
-### Notifications
-- In-app notification feed
-- Filter by unread
-- Mark one or all as read
+### People
+Discover and connect with other users.
 
-### AI Assistant
-Powered by Groq's low-latency inference API.
+- Search users by name
+- Follow / unfollow with live follower count
+- Public profile view with activity tabs: Posts, Comments, Liked
 
-- **Cover letter generator** — paste a job description, get a tailored cover letter
-- **Career chat** — ask career questions and get contextual answers
+### Direct Messaging
+Persistent real-time conversations accessible from anywhere.
 
-### Resume Parser
-- Upload a PDF resume
-- PDFBox extracts text server-side
-- Structured profile fields returned for auto-fill
-
-### Search
-- Global search across jobs and user profiles via Elasticsearch
+- Floating message widget on every page
+- Click Message on any profile or forum thread to start a conversation
+- WebSocket delivery with read receipts
+- Full conversation history persisted in PostgreSQL
 
 ---
 
 ## Getting Started
 
-**Prerequisites:** Docker, Docker Compose, Node.js 20+
-
-### 1. Clone
+**Prerequisites:** Node.js 20+, Java 17+, Maven 3.9+, PostgreSQL
 
 ```bash
-git clone https://github.com/LittleTom388/SpinNode.git
+git clone https://github.com/nghiem-pham/SpinNode.git
 cd SpinNode
-```
 
-### 2. Environment variables
+# Backend — set in server/src/main/resources/application-local.yml or as env vars:
+# DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET,
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GROQ_API_KEY, FRONTEND_URL
 
-```bash
-export DB_URL=jdbc:postgresql://localhost:5432/spinnode
-export DB_USERNAME=postgres
-export DB_PASSWORD=your_password
-export JWT_SECRET=a-random-secret-at-least-32-characters-long
-export GOOGLE_CLIENT_ID=your_google_client_id        # optional — OAuth only
-export GOOGLE_CLIENT_SECRET=your_google_client_secret
-export GROQ_API_KEY=your_groq_api_key                # optional — AI features only
-```
+# Frontend — set in client/.env:
+# VITE_LOGO_DEV_TOKEN
 
-> Register `http://localhost:4173` as an authorised redirect URI in your Google Cloud Console credentials.
+# Create the database
+psql -U postgres -c "CREATE DATABASE spinnode;"
 
-### 3. Start the backend
+# Start the backend (Flyway runs migrations automatically)
+cd server && mvn spring-boot:run   # → http://localhost:8080
 
-```bash
-createdb spinnode
-cd server
-./mvnw spring-boot:run
-```
-
-Backend runs on `http://localhost:8080`. Flyway applies all migrations on startup.
-
-### 4. Start the frontend
-
-```bash
-cd client
-npm install
-npm run dev -- --host localhost --port 4173
-```
-
-Frontend runs on `http://localhost:4173`. Vite proxies `/auth`, `/oauth2`, `/ws`, and `/api` to the Spring backend.
-
-### Docker (backend only)
-
-```bash
-cd server
-docker build -t spinnode-server .
-docker run -p 8080:8080 \
-  -e DB_URL=jdbc:postgresql://host.docker.internal:5432/spinnode \
-  -e DB_USERNAME=postgres \
-  -e DB_PASSWORD=your_password \
-  -e JWT_SECRET=your_jwt_secret \
-  spinnode-server
+# Start the frontend
+cd ../client && npm install && npm run dev   # → http://localhost:5173
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Role-based endpoint authorization (`@PreAuthorize`)
-- [ ] File upload storage for avatars and cover images (S3 / object store)
-- [ ] Docker Compose for full local stack (server + PostgreSQL + Redis)
-- [ ] Job application pipeline — apply, track status, recruiter review
-- [ ] Automated test coverage for service layer
+- [ ] Recruiter dashboard — post/manage job listings and browse talent pool
+- [ ] Job application tracker
+- [ ] Email notifications
+- [ ] Company pages with open roles feed
+- [ ] Mobile app

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Header } from '../components/Header';
 import {
-  Bookmark, MapPin, DollarSign, Clock, Building2, Share2,
+  Bookmark, MapPin, DollarSign, Clock, Building2,
   Search, X, ArrowLeft, SlidersHorizontal, Briefcase, Calendar,
   FileUp, Loader2, Sparkles, FileText, CheckCircle2, Upload, Star,
 } from 'lucide-react';
@@ -463,6 +463,7 @@ Be honest: if the candidate is a weak fit, say so and focus advice on closing th
                 ))}
               </div>
             )}
+
           </div>
 
           {/* Right: job detail */}
@@ -471,6 +472,7 @@ Be honest: if the candidate is a weak fit, say so and focus advice on closing th
           } flex-col min-w-0`}>
             {selectedJob ? (
               <JobDetail
+                key={selectedJob.id}
                 job={selectedJob}
                 onSave={handleSave}
                 onBack={() => setMobileView('list')}
@@ -981,16 +983,6 @@ function JobDetail({ job, onSave, onBack, onTailor, onApply, isApplied }: {
 
       {/* Footer */}
       <div className="flex-shrink-0 flex items-center gap-3 border-t border-white/40 bg-white/20 p-4 backdrop-blur-sm">
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(`${window.location.origin}/jobs#${job.id}`);
-            toast.success('Job link copied');
-          }}
-          title="Share"
-          className="glass-input flex-shrink-0 rounded-full p-2.5 text-gray-600 hover:bg-white/75 transition"
-        >
-          <Share2 className="size-4" />
-        </button>
         <button
           onClick={onTailor}
           className="glass-input flex-shrink-0 flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-medium text-[#009999] hover:bg-white/75 transition"

@@ -4,9 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 
 const JOB_SEEKER_NAV = [
   { to: '/jobs', icon: Briefcase, label: 'Jobs' },
-  { to: '/challenges', icon: LayoutGrid, label: 'Dev Hub' },
+  { to: '/devhub', icon: LayoutGrid, label: 'Dev Hub' },
   { to: '/forums', icon: Users, label: 'Community' },
-  { to: '/applications', icon: ScrollText, label: 'Resume' },
+  { to: '/resume', icon: ScrollText, label: 'Resume' },
 ];
 
 const RECRUITER_NAV = [

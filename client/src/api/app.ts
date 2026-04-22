@@ -84,42 +84,6 @@ export interface JobResponse {
   applyUrl: string;
 }
 
-export interface NotificationResponse {
-  id: number;
-  type: "like" | "comment" | "follow" | "share";
-  user: {
-    id: number;
-    name: string;
-    avatar: string;
-  };
-  content?: string;
-  postContent?: string;
-  timestamp: string;
-  read: boolean;
-}
-
-export interface ChallengeResponse {
-  id: number;
-  title: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  description: string;
-  topics: string[];
-  acceptance: string;
-  submissions: string;
-  leetcodeUrl: string;
-  completed: boolean;
-  completedAt?: string;
-  dailyDate?: string;
-}
-
-export interface ChallengeOverviewResponse {
-  currentStreak: number;
-  completedCount: number;
-  totalPoints: number;
-  dailyChallenge: ChallengeResponse;
-  pastChallenges: ChallengeResponse[];
-}
-
 export interface ForumCategoryResponse {
   id: number;
   slug: string;
@@ -269,32 +233,6 @@ export function toggleSavedJob(jobId: number) {
   });
 }
 
-export function fetchNotifications(unreadOnly = false) {
-  return apiRequest<NotificationResponse[]>(`/api/notifications?unreadOnly=${unreadOnly}`);
-}
-
-export function markNotificationRead(notificationId: number) {
-  return apiRequest<void>(`/api/notifications/${notificationId}/read`, {
-    method: "PATCH",
-  });
-}
-
-export function markAllNotificationsRead() {
-  return apiRequest<void>("/api/notifications/read-all", {
-    method: "PATCH",
-  });
-}
-
-export function fetchChallenges() {
-  return apiRequest<ChallengeOverviewResponse>("/api/challenges");
-}
-
-export function completeDailyChallenge() {
-  return apiRequest<ChallengeResponse>("/api/challenges/daily/complete", {
-    method: "POST",
-  });
-}
-
 export function fetchForumCategories() {
   return apiRequest<ForumCategoryResponse[]>("/api/forums/categories");
 }
@@ -355,6 +293,10 @@ export function fetchLikedThreadsByUser(userId: number) {
   return apiRequest<ForumThreadResponse[]>(`/api/forums/users/${userId}/liked-threads`);
 }
 
+export function deleteReply(threadId: number, replyId: number) {
+  return apiRequest<void>(`/api/forums/threads/${threadId}/replies/${replyId}`, { method: "DELETE" });
+}
+
 export function toggleThreadUpvote(threadId: number) {
   return apiRequest<ForumThreadResponse>(`/api/forums/threads/${threadId}/upvote`, {
     method: "POST",
@@ -406,23 +348,6 @@ export function parseResume(file: File) {
   const form = new FormData();
   form.append("file", file);
   return apiUpload<ResumeParseResponse>("/api/resume/parse", form);
-}
-
-// ── AI Assistant ──────────────────────────────────────────────────────────────
-
-export interface CoverLetterRequest {
-  jobTitle: string;
-  company: string;
-  jobDescription?: string;
-  skills?: string[];
-  applicantName?: string;
-}
-
-export function generateCoverLetter(data: CoverLetterRequest) {
-  return apiRequest<{ text: string }>("/api/ai/cover-letter", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
 }
 
 export function aiChat(message: string) {

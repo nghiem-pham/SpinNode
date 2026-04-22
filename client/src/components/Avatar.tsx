@@ -17,11 +17,24 @@ function getInitials(name: string): string {
 
 interface AvatarProps {
   name: string;
+  src?: string;
   size?: number;
   className?: string;
 }
 
-export function Avatar({ name, size = 36, className = '' }: AvatarProps) {
+export function Avatar({ name, src, size = 36, className = '' }: AvatarProps) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={`flex-shrink-0 rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
+        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+      />
+    );
+  }
+
   const bg = PALETTE[hashName(name) % PALETTE.length];
   const initials = getInitials(name);
   const fontSize = Math.round(size * 0.38);

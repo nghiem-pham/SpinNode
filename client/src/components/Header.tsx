@@ -21,7 +21,7 @@ export function Header() {
   return (
     <>
     <header className="glass-header sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4">
+      <div className="px-4 md:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-4 flex-1">
             <BrandLogo compact className="flex-shrink-0" />
@@ -70,9 +70,9 @@ export function Header() {
                   <span className="hidden group-hover:inline">Jobs</span>
                 </Link>
                 <Link
-                  to="/challenges"
+                  to="/devhub"
                   className={`group flex items-center gap-2 rounded-full px-3 py-2 hover:text-[#009999] hover:bg-white/50 transition ${
-                    location.pathname === '/challenges' ? 'text-[#009999] bg-white/55' : 'text-gray-700'
+                    location.pathname === '/devhub' ? 'text-[#009999] bg-white/55' : 'text-gray-700'
                   }`}
                 >
                   <LayoutGrid className="size-5" />
@@ -88,9 +88,9 @@ export function Header() {
                   <span className="hidden group-hover:inline">Community</span>
                 </Link>
                 <Link
-                  to="/applications"
+                  to="/resume"
                   className={`group flex items-center gap-2 rounded-full px-3 py-2 hover:text-[#009999] hover:bg-white/50 transition ${
-                    location.pathname.startsWith('/applications') ? 'text-[#009999] bg-white/55' : 'text-gray-700'
+                    location.pathname.startsWith('/resume') ? 'text-[#009999] bg-white/55' : 'text-gray-700'
                   }`}
                 >
                   <ScrollText className="size-5" />
@@ -104,7 +104,7 @@ export function Header() {
             {/* User dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className="glass-input flex items-center gap-3 rounded-full px-2.5 py-1.5 hover:bg-white/75 transition outline-none">
-                {user && <Avatar name={user.name} size={32} />}
+                {user && <Avatar name={user.name} src={user.avatar} size={32} />}
                 <span className="hidden sm:block font-medium text-gray-900">{user?.name}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">

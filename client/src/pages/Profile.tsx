@@ -149,14 +149,39 @@ export function Profile() {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveImage = (editedImageUrl: string) => {
-    if (editingType === 'avatar') {
-      setAvatarUrl(editedImageUrl);
-    } else {
-      setCoverUrl(editedImageUrl);
-    }
+  const handleSaveImage = async (editedImageUrl: string) => {
+    const newAvatarUrl = editingType === 'avatar' ? editedImageUrl : avatarUrl;
+    const newCoverUrl  = editingType === 'cover'  ? editedImageUrl : coverUrl;
+    if (editingType === 'avatar') setAvatarUrl(editedImageUrl);
+    else setCoverUrl(editedImageUrl);
     setShowImageEditor(false);
     setTempImageUrl('');
+    setSaving(true);
+    try {
+      await updateProfile({
+        name, bio, location,
+        avatarUrl: newAvatarUrl,
+        coverUrl: newCoverUrl,
+        experiences: experiences.map(item => ({
+          id: Number.isNaN(Number(item.id)) ? undefined : Number(item.id),
+          title: item.title, company: item.company, duration: item.duration, description: item.description,
+        })),
+        projects: projects.map(item => ({
+          id: Number.isNaN(Number(item.id)) ? undefined : Number(item.id),
+          name: item.name, description: item.description, technologies: item.technologies, link: item.link,
+        })),
+        skills: skills.map(item => ({
+          id: Number.isNaN(Number(item.id)) ? undefined : Number(item.id),
+          name: item.name, level: item.level,
+        })),
+      });
+      await refreshUser();
+      toast.success('Image saved');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to save image'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

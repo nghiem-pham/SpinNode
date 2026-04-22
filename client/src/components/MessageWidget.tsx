@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, X, Search } from 'lucide-react';
 import { Link } from 'react-router';
 import { Input } from './ui/input';
@@ -12,11 +12,19 @@ import { getErrorMessage } from '../utils/error';
 import { formatRelativeTime } from '../utils/format';
 
 export function MessageWidget() {
-  const { isOpen, openWidget, closeWidget } = useMessageWidget();
+  const { isOpen, openWidget, closeWidget, pendingConversationId, clearPendingConversation } = useMessageWidget();
   const { conversations, markAsRead, totalUnread, loadMessages, sendMessage } = useConversations();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (pendingConversationId && isOpen) {
+      handleSelectConversation(pendingConversationId);
+      clearPendingConversation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingConversationId, isOpen]);
 
   const selectedChat = conversations.find(c => c.id === selectedConversation);
   const filteredConversations = conversations.filter((conversation) =>
@@ -59,7 +67,7 @@ export function MessageWidget() {
           <div className="flex -space-x-2">
             {conversations.slice(0, 3).map((conv) => (
               <div key={conv.id} className="relative">
-                <Avatar name={conv.name} size={32} className="border-2 border-[#0f6d6d]" />
+                <Avatar name={conv.name} src={conv.avatar} size={32} className="border-2 border-[#0f6d6d]" />
                 {conv.online && (
                   <div className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-[#0f6d6d] bg-green-500" />
                 )}
@@ -129,7 +137,7 @@ export function MessageWidget() {
                     className="flex w-full items-start gap-3 border-b border-white/40 p-4 transition hover:bg-white/45"
                   >
                     <div className="relative flex-shrink-0">
-                      <Avatar name={conv.name} size={48} />
+                      <Avatar name={conv.name} src={conv.avatar} size={48} />
                       {conv.online && (
                         <div className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full border-2 border-white" />
                       )}
@@ -163,7 +171,7 @@ export function MessageWidget() {
                   </svg>
                 </button>
                 <div className="relative flex-shrink-0">
-                  {selectedChat && <Avatar name={selectedChat.name} size={40} />}
+                  {selectedChat && <Avatar name={selectedChat.name} src={selectedChat.avatar} size={40} />}
                   {selectedChat?.online && (
                     <div className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full border-2 border-white" />
                   )}

@@ -5,10 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import {
   ArrowLeft, ThumbsUp, MessageSquare, Eye, Clock,
-  Pin, Lock, Send,
+  Pin, Lock, Send, Trash2,
 } from 'lucide-react';
 import {
-  fetchThread, fetchReplies, createReply, toggleThreadUpvote,
+  fetchThread, fetchReplies, createReply, toggleThreadUpvote, deleteReply,
   type ForumThreadResponse, type ForumReplyResponse,
 } from '../api/app';
 import { formatRelativeTime } from '../utils/format';
@@ -66,6 +66,18 @@ export function ThreadDetail() {
       toast.error(getErrorMessage(err, 'Failed to upvote'));
     } finally {
       setUpvoting(false);
+    }
+  };
+
+  const handleDeleteReply = async (replyId: number) => {
+    if (!thread) return;
+    try {
+      await deleteReply(thread.id, replyId);
+      setReplies(prev => prev.filter(r => r.id !== replyId));
+      setThread(prev => prev ? { ...prev, replies: Math.max(0, prev.replies - 1) } : prev);
+      toast.success('Reply deleted');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete reply'));
     }
   };
 
@@ -143,7 +155,7 @@ export function ThreadDetail() {
             {/* Author row */}
             <div className="flex items-center gap-3">
               <Link to={`/profile/${thread.author.id}`} onClick={e => e.stopPropagation()}>
-                <Avatar name={thread.author.name} size={40} className="border-2 border-white/40 hover:border-white transition" />
+                <Avatar name={thread.author.name} src={thread.author.avatar} size={40} className="border-2 border-white/40 hover:border-white transition" />
               </Link>
               <div>
                 <Link
@@ -228,7 +240,7 @@ export function ThreadDetail() {
 
           <div className="space-y-3">
             {replies.map((reply, idx) => (
-              <ReplyCard key={reply.id} reply={reply} index={idx + 1} currentUserId={user?.id} />
+              <ReplyCard key={reply.id} reply={reply} index={idx + 1} currentUserId={user?.id} onDelete={handleDeleteReply} />
             ))}
           </div>
 
@@ -245,7 +257,7 @@ export function ThreadDetail() {
           <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-5">
             <div className="flex items-start gap-3">
               {user && (
-                <Avatar name={user.name} size={36} className="mt-0.5" />
+                <Avatar name={user.name} src={user.avatar} size={36} className="mt-0.5" />
               )}
               <div className="flex-1 min-w-0">
                 <textarea
@@ -283,10 +295,11 @@ export function ThreadDetail() {
 
 // ── ReplyCard ─────────────────────────────────────────────────────────────────
 
-function ReplyCard({ reply, index, currentUserId }: {
+function ReplyCard({ reply, index, currentUserId, onDelete }: {
   reply: ForumReplyResponse;
   index: number;
   currentUserId?: string;
+  onDelete: (replyId: number) => void;
 }) {
   const isOwn = currentUserId && String(reply.author.id) === currentUserId;
 
@@ -295,8 +308,8 @@ function ReplyCard({ reply, index, currentUserId }: {
       <div className="flex gap-3">
         {/* Avatar + index */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <Link to={`/profile/${reply.author.id}`}>
-            <Avatar name={reply.author.name} size={36} className="hover:ring-2 hover:ring-[#009999] transition" />
+          <Link to={isOwn ? '/profile' : `/profile/${reply.author.id}`}>
+            <Avatar name={reply.author.name} src={reply.author.avatar} size={36} className="hover:ring-2 hover:ring-[#009999] transition" />
           </Link>
           <span className="text-[10px] text-gray-300 font-mono">#{index}</span>
         </div>
@@ -305,7 +318,7 @@ function ReplyCard({ reply, index, currentUserId }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Link
-              to={`/profile/${reply.author.id}`}
+              to={isOwn ? '/profile' : `/profile/${reply.author.id}`}
               className="font-semibold text-sm text-gray-900 hover:text-[#009999] transition"
             >
               {reply.author.name}
@@ -317,6 +330,15 @@ function ReplyCard({ reply, index, currentUserId }: {
               <Clock className="size-3" />
               {formatRelativeTime(reply.createdAt)}
             </span>
+            {isOwn && (
+              <button
+                onClick={() => onDelete(reply.id)}
+                className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
+                title="Delete reply"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
           </div>
           <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
             {reply.content}

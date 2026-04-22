@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { Header } from '../components/Header';
 import { Avatar } from '../components/Avatar';
 import {
@@ -17,6 +17,7 @@ import { LoadingState } from '../components/ui/loading-state';
 import { getErrorMessage } from '../utils/error';
 import { useAuth } from '../contexts/AuthContext';
 import { useConversations } from '../contexts/ConversationsContext';
+import { useMessageWidget } from '../contexts/MessageWidgetContext';
 
 interface Experience { id: number; title: string; company: string; duration: string; description: string; }
 interface Project { id: number; name: string; description: string; technologies: string[]; link?: string; }
@@ -34,8 +35,8 @@ type ActivityTab = 'posts' | 'comments' | 'liked';
 export function PublicProfile() {
   const { userId } = useParams<{ userId: string }>();
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const { createConversation } = useConversations();
+  const { conversations, createConversation } = useConversations();
+  const { openWithConversation } = useMessageWidget();
 
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -100,8 +101,9 @@ export function PublicProfile() {
     if (!userId) return;
     setMessaging(true);
     try {
-      await createConversation(Number(userId), `Hi ${name}!`);
-      navigate('/messages');
+      const existing = conversations.find(c => c.participantId === userId);
+      const conv = existing ?? await createConversation(Number(userId), `Hi ${name}!`);
+      openWithConversation(conv.id);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to start conversation'));
     } finally {
