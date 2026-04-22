@@ -173,7 +173,7 @@ Persistent real-time conversations accessible from anywhere.
 
 ## Getting Started
 
-**Prerequisites:** Node.js 20+, Java 17+, Maven 3.9+, PostgreSQL
+**Prerequisites:** Node.js 20+, Java 17+, PostgreSQL
 
 ```bash
 git clone https://github.com/nghiem-pham/SpinNode.git
@@ -190,7 +190,7 @@ cd SpinNode
 psql -U postgres -c "CREATE DATABASE spinnode;"
 
 # Start the backend (Flyway runs migrations automatically)
-cd server && mvn spring-boot:run   # → http://localhost:8080
+cd server && ./mvnw spring-boot:run   # → http://localhost:8080
 
 # Start the frontend
 cd ../client && npm install && npm run dev   # → http://localhost:5173
