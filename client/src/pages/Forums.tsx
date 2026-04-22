@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { useConversations } from '../contexts/ConversationsContext';
+import { useMessageWidget } from '../contexts/MessageWidgetContext';
 import {
   MessageSquare, ThumbsUp, Eye, Clock, TrendingUp, Search, Plus,
   Pin, Lock, Trash2, Users, Briefcase, Code, DollarSign, BookOpen,
@@ -48,8 +49,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export function Forums() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const { createConversation: createConv } = useConversations();
+  const { conversations, createConversation: createConv } = useConversations();
+  const { openWithConversation } = useMessageWidget();
 
   // ── Tab ───────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'forums' | 'people'>('forums');
@@ -156,8 +157,9 @@ export function Forums() {
   const handleMessage = async (userId: number, name: string) => {
     setMessaging(userId);
     try {
-      await createConv(userId, `Hi ${name}! 👋`);
-      navigate('/messages');
+      const existing = conversations.find(c => c.participantId === String(userId));
+      const conv = existing ?? await createConv(userId, `Hi ${name}! 👋`);
+      openWithConversation(conv.id);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to start conversation'));
     } finally {
@@ -416,7 +418,7 @@ export function Forums() {
                               <div className="flex gap-4">
                                 <div onClick={e => e.preventDefault()} className="flex-shrink-0">
                                   <Link to={`/profile/${thread.author.id}`}>
-                                    <Avatar name={thread.author.name} size={48} className="hover:ring-2 hover:ring-[#009999] transition" />
+                                    <Avatar name={thread.author.name} src={thread.author.avatar} size={48} className="hover:ring-2 hover:ring-[#009999] transition" />
                                   </Link>
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -513,7 +515,7 @@ export function Forums() {
                       >
                         {/* Avatar */}
                         <Link to={`/profile/${user.id}`} className="mb-3">
-                          <Avatar name={user.displayName} size={80} className="hover:ring-2 hover:ring-[#009999] transition" />
+                          <Avatar name={user.displayName} src={user.avatar} size={80} className="hover:ring-2 hover:ring-[#009999] transition" />
                         </Link>
 
                         {/* Name & role */}
